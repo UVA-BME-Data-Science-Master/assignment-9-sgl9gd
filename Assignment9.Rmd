@@ -1,0 +1,475 @@
+---
+title: "Assignment9"
+author: "Stephen Ling"
+output: html_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+library(devtools)
+install_github("genomicsclass/dagdata")
+library(dagdata)
+data(admissions)
+install_github("genomicsclass/GSE5859")
+library(GSE5859)
+data(GSE5859)
+```
+
+
+#Batch Effect Exercise 1. 
+
+1.
+```{r}
+index = which(admissions$Gender==1)
+accepted= sum(admissions$Number[index] * admissions$Percent[index]/100)
+applied = sum(admissions$Number[index])
+accepted/applied
+    
+index = which(admissions$Gender==0)
+accepted= sum(admissions$Number[index] * admissions$Percent[index]/100)
+applied = sum(admissions$Number[index])
+accepted/applied
+```
+
+2.
+```{r}
+atab<-as.data.frame(matrix(0,2,2))
+rownames(atab)<-c("Men","Women")
+colnames(atab)<-c("Accepted","Rejected")
+index = admissions$Gender==1
+men=admissions[index,]
+women=admissions[!index,]
+atab[1,1]= sum(men$Number * men$Percent/100)
+atab[1,2]= sum(men$Number*(1-men$Percent/100))
+windex = which(admissions$Gender==0)
+atab[2,1]= sum(women$Number * women$Percent/100)
+atab[2,2]= sum(women$Number * (1-women$Percent/100))
+atab
+chisq.test(atab)$p.value
+```
+
+How can this be? This is referred to as Simpson’s Paradox. In the following questions we will try to decipher why this is happening.
+
+```{r}
+index = admissions$Gender==1
+men = admissions[index,]
+women = admissions[!index,]
+print( data.frame( major=admissions[1:6,1],men=men[,3], women=women[,3]) )
+```
+
+3.
+```{r}
+major = admissions[1:6,1]
+men = admissions[1:6,]
+women =admissions[7:12,]
+H = (men$Number*men$Percent/100 + women$Number*women$Percent/100) / (men$Number+women$Number)
+H
+major[which.min(H)]
+min(H)
+```
+
+Major F is the hardest.
+
+4.
+```{r}
+min(H)
+```
+
+5. 
+```{r}
+cor(H,men$Number)
+cor(men$Number,H)
+```
+
+The proportion about 0.765.
+
+6. 
+```{r}
+cor(H,women$Number)
+```
+
+7.
+There is a counfounding between gender and preference for "harder" majors: females are more likely to apply to harder majors.
+
+###Batch Effect Exercises 2
+
+```{r}
+library(Biobase)
+library(GSE5859)
+data(GSE5859)
+```
+
+1.
+```{r}
+sampleInfo <- pData(e)
+year = format(sampleInfo$date,"%y")
+```
+
+```{r}
+table(year,sampleInfo$ethnicity)
+```
+
+2. 
+```{r}
+tab=table(year,sampleInfo$ethnicity)
+print(tab)
+x=rowSums(tab!=0)
+sum(x>=2)
+```
+Two years. 
+
+3.
+```{r}
+month.year = format(sampleInfo$date,"%m%y")
+```
+
+For what proportion of these month.year values do we have more than one ethnicity
+represented?
+
+```{r}
+mytab=table(month.year,sampleInfo$ethnicity)
+print(mytab)
+myx=rowSums(mytab!=0)
+mean(myx>=2)
+```
+The proportion is 0.047619
+
+4.
+```{r}
+library(qvalue)
+library(genefilter)
+geneExpression = exprs(e)
+year = factor( format(sampleInfo$date,"%y") )
+index = which(year%in% c("02","03") & sampleInfo$ethnicity=="CEU")
+year = droplevels(year[index])
+pval = rowttests(geneExpression[ ,index], year)$p.value
+qval = qvalue(pval)
+sum(qval$qvalue < 0.05)
+```
+
+5.
+```{r}
+qval$pi0
+```
+
+6. 
+```{r}
+library(qvalue)
+library(genefilter)
+year = factor( format(sampleInfo$date,"%y") )
+index = which(year%in% c("03","04") & sampleInfo$ethnicity=="CEU")
+year = droplevels(year[index])
+pval = rowttests(geneExpression[ ,index], year)$p.value
+qval = qvalue(pval)
+sum(qval$qvalue < 0.05)
+```
+
+7.
+```{r}
+library(qvalue)
+library(genefilter)
+ethnicity = factor( sampleInfo$ethnicity)
+index = which(ethnicity%in% c("CEU","ASN"))
+ethnicity = droplevels(ethnicity[index])
+pval = rowttests(geneExpression[ ,index], ethnicity)$p.value
+qval = qvalue(pval)
+sum(qval$qvalue < 0.05)
+```
+
+8. 
+```{r}
+library(qvalue)
+library(genefilter)
+ethnicity = factor( sampleInfo$ethnicity)
+year = factor( format(sampleInfo$date,"%y") )
+index = which(ethnicity%in% c("CEU","ASN") & year=="05")
+ethnicity = droplevels(ethnicity[index])
+pval = rowttests(geneExpression[ ,index], ethnicity)$p.value
+qval = qvalue(pval)
+sum(qval$qvalue < 0.05)
+```
+
+```{r}
+table(sampleInfo$ethnicity[index])
+```
+
+9.
+```{r}
+library(qvalue)
+library(genefilter)
+ethnicity = factor( sampleInfo$ethnicity)
+year = factor( format(sampleInfo$date,"%y") )
+indexASN = which(ethnicity%in% c("ASN") & year=="05")
+indexCEU = which(ethnicity%in% c("CEU") & year=="02")
+set.seed(3)
+indexCEU<-sample(indexCEU,3)
+index<-c(indexASN,indexCEU)
+ethnicity = droplevels(ethnicity[index])
+pval = rowttests(geneExpression[ ,index], ethnicity)$p.value
+qval = qvalue(pval)
+sum(qval$qvalue < 0.05)
+```
+
+#Batch Effect Exercise 3
+
+```{r}
+sex = sampleInfo$group
+month = factor( format(sampleInfo$date,"%m"))
+table( sampleInfo$group, month)
+```
+
+###1. 
+```{r}
+library(qvalue)
+library(genefilter)
+sex = factor( sex)
+pval = rowttests(geneExpression, sex)$p.value
+qval = qvalue(pval)
+sum(qval$qvalue < 0.1)
+```
+
+###2. 
+```{r}
+library(qvalue)
+library(genefilter)
+sex = factor( sex)
+pval = rowttests(geneExpression, sex)$p.value
+qval = qvalue(pval)
+qvals = qval$qvalues
+index = geneAnnotation$CHR[qvals<0.1]%in%c("chrX","chrY")
+mean(index)
+```
+
+###3.
+```{r}
+```
+
+###4. 
+```{r}
+library(qvalue)
+library(genefilter)
+sex = factor( sex)
+pval = rowttests(geneExpression, sex)$p.value
+qval = qvalue(pval)
+qvals = qval$qvalues
+index = which(qvals<0.1 & !geneAnnotation$CHR%in%c("chrX","chrY"))
+month = factor( format(sampleInfo$date,"%m"))
+pval = rowttests(geneExpression[index,], month)$p.value
+mean(pval<0.05)
+```
+
+###5.
+The answer is D.
+
+###6. 
+```{r}
+X = model.matrix(~sex+month)
+i = 234
+y = geneExpression[i,]
+fit = lm(y~X)
+summary(fit)$coef
+
+pvals <- t( sapply(1:nrow(geneExpression),function(j){
+  y <- geneExpression[j,]
+  fit <- lm(y~X-1)
+  summary(fit)$coef[2,4] # the 2 picks out the second (sex) coef, the 4 picks out the p value
+} ) )
+library(qvalue)
+library(genefilter)
+qval = qvalue(pvals)
+qvals = qval$qvalues
+sum(qvals<0.1)
+```
+
+###7. 
+```{r}
+index = geneAnnotation$CHR[qvals<0.1]%in%c("chrX","chrY")
+mean(index)
+```
+
+###8. 
+```{r}
+```
+
+###9. 
+```{r}
+X = model.matrix(~sex+month)
+pvals <- t( sapply(1:nrow(geneExpression),function(j){
+  y <- geneExpression[j,]
+  fit <- lm(y~X-1)
+  summary(fit)$coef[3,4] # third coef, for month
+} ) )
+library(qvalue)
+library(genefilter)
+qval = qvalue(pvals)
+qvals = qval$qvalues
+sum(qvals<0.1)
+```
+
+#Batch Effect Exercise #4
+
+###1. 
+The answer is B. 
+
+###2. 
+The answer is C.
+
+###3. 
+```{r}
+library(Biobase)
+library(GSE5859Subset)
+data(GSE5859Subset)
+
+y = geneExpression - rowMeans(geneExpression)
+
+library(RColorBrewer)
+library(rafalib)
+mypar(1,2)
+n=ncol(y)
+cors=cor(y)
+cols=colorRampPalette(rev(brewer.pal(11,"RdBu")))(100)
+image(1:n,1:n,cors,xaxt="n",yaxt="n",col=cols,xlab="",ylab="",zlim=c(-1,1))
+o <- order(sampleInfo$date)
+yo<-y[,o]
+cors=cor(yo)
+cols=colorRampPalette(rev(brewer.pal(11,"RdBu")))(100)
+image(1:n,1:n,cors,xaxt="n",yaxt="n",col=cols,xlab="",ylab="",zlim=c(-1,1))
+
+library(rafalib)
+sex = sampleInfo$group
+mypar(1,2)
+cors = cor(y)
+image(cors)
+o = order(sampleInfo$date)
+image(cors[o,o])
+```
+
+###4.
+```{r}
+s <- svd(y)
+What <- s$v[,1:2] # these are the first two PCs.
+rownames(What)<-colnames(y)
+round(What,2)
+fit = s$u[,1:2]%*% (s$d[1:2]*t(What))
+var(as.vector(fit))/var(as.vector(y))
+```
+
+###5.
+```{r}
+month=format(sampleInfo$date, "%m")
+pcs = svd(y)$v[,1:2]
+o = order(sampleInfo$date)
+cols = as.numeric(month)[o]
+mypar(2,1)
+for(i in 1:2){
+  plot(pcs[o,i],col=cols,xaxt="n",xlab="")
+  label = gsub("2005-","",sampleInfo$date[o])
+  axis(1,1:ncol(y),label,las=2)
+```
+
+The answer is A.
+
+###6.
+```{r}
+s = svd(y)
+varexplained = s$d^2/ sum(s$d^2)
+plot(varexplained)
+sum(varexplained>0.10)
+```
+
+###7/8.
+```{r}
+s = svd(y)
+month = factor( format(sampleInfo$date,"%m"))
+cors = cor( as.numeric(month),s$v)
+plot(t(cors))
+which.max(abs(cors))
+max(abs(cors))
+```
+
+###9/10.
+```{r}
+s = svd(y)
+sex = sampleInfo$group
+cors = cor( as.numeric(sex),s$v)
+plot(t(cors))
+which.max(abs(cors))
+max(abs(cors))
+```
+
+###11.
+```{r}
+X <- model.matrix(~sex+s$v[,1:2])
+
+library(limma)
+X <- model.matrix(~sex+s$v[,1:2])
+fit <- lmFit(y,X)
+k <- 2 ##second coef, for month
+ses <- fit$stdev.unscaled[,k]*fit$sigma
+ttest <- fit$coef[,k]/ses
+pvals <- 2*pt(-abs(ttest),fit$df)
+library(qvalue)
+library(genefilter)
+qval = qvalue(pvals)
+qvals = qval$qvalues
+sum(qvals<0.1)
+```
+
+###12.
+```{r}
+index = geneAnnotation$CHR[qvals<0.1]%in%c("chrX","chrY")
+mean(index)
+```
+
+#Batch Effect Exercise #5
+
+###1.
+```{r}
+library("sva")
+s <- svd(geneExpression-rowMeans(geneExpression))
+cor(sampleInfo$group,s$v[,1])
+
+sex = sampleInfo$group
+mod = model.matrix(~sex)
+svafit = sva(geneExpression,mod)
+head(svafit$sv)
+
+for(i in 1:ncol(svafit$sv)){
+  print( cor(s$v[,i],svafit$sv[,i]) )
+}
+
+svaX<-model.matrix(~sex+svafit$sv)
+library(limma)
+fit <- lmFit(geneExpression,svaX)
+k <- 2 #second coef, for sex
+ses <- fit$stdev.unscaled[,k]*fit$sigma
+ttest <- fit$coef[,k]/ses
+pvals <- 2*pt(-abs(ttest),fit$df)
+library(qvalue)
+library(genefilter)
+qval = qvalue(pvals)
+qvals = qval$qvalues
+sum(qvals<0.1)
+```
+
+###2.
+```{r}
+index = geneAnnotation$CHR[qvals<0.1]%in%c("chrX","chrY")
+mean(index)
+
+res = sapply(1:nrow(geneExpression),function(i){
+	y = geneExpression[i,]
+	fit = lm(y~svaX-1)
+	summary(fit)$coef[2,c(1,4)]
+})
+qvals = qvalue(res[2,])$qvalue
+pcutoff = max( res[2,qvals < .1] )
+library(rafalib)
+mypar(1,1)
+plot(res[1,],-log10(res[2,]),xlab="M",ylab="log10 p-value")
+ind = which(geneAnnotation$CHR=="chrY")
+points(res[1,ind],-log10(res[2,ind]),col=1,pch=16)
+ind = which(geneAnnotation$CHR=="chrX")
+points(res[1,ind],-log10(res[2,ind]),col=2,pch=16)
+abline(h=-log10(pcutoff))
+legend("bottomleft",c("chrX","chrY"),col=c(2,1),pch=16)
