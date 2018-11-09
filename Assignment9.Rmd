@@ -97,6 +97,8 @@ There is a counfounding between gender and preference for "harder" majors: femal
 library(Biobase)
 library(GSE5859)
 data(GSE5859)
+geneExpression = exprs(e)
+sampleInfo = pData(e)
 ```
 
 1.
@@ -213,6 +215,8 @@ sum(qval$qvalue < 0.05)
 #Batch Effect Exercise 3
 
 ```{r}
+library(GSE5859Subset)
+data(GSE5859Subset)
 sex = sampleInfo$group
 month = factor( format(sampleInfo$date,"%m"))
 table( sampleInfo$group, month)
@@ -365,6 +369,7 @@ for(i in 1:2){
   plot(pcs[o,i],col=cols,xaxt="n",xlab="")
   label = gsub("2005-","",sampleInfo$date[o])
   axis(1,1:ncol(y),label,las=2)
+}
 ```
 
 The answer is A.
